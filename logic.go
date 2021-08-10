@@ -1,10 +1,5 @@
 package main
 
-// This file can be a nice home for your Battlesnake logic and related helper functions.
-//
-// We have started this for you, with a function to help remove the 'neck' direction
-// from the list of possible moves!
-
 import (
 	"log"
 	"math/rand"
@@ -14,7 +9,6 @@ import (
 // See https://docs.battlesnake.com/guides/getting-started#step-4-register-your-battlesnake
 // It controls your Battlesnake appearance and author permissions.
 // For customization options, see https://docs.battlesnake.com/references/personalization
-// TIP: If you open your Battlesnake URL in browser you should see this data.
 func info() BattlesnakeInfoResponse {
 	log.Println("INFO")
 	return BattlesnakeInfoResponse{
@@ -50,21 +44,8 @@ func move(state GameState) BattlesnakeMoveResponse {
 		"right": true,
 	}
 
-	// Step 0: Don't let your Battlesnake move back in on it's own neck
-	myHead := state.You.Body[0] // Coordinates of your head
-	myNeck := state.You.Body[1] // Coordinates of body piece directly behind your head (your "neck")
-	if myNeck.X < myHead.X {
-		possibleMoves["left"] = false
-	} else if myNeck.X > myHead.X {
-		possibleMoves["right"] = false
-	} else if myNeck.Y < myHead.Y {
-		possibleMoves["down"] = false
-	} else if myNeck.Y > myHead.Y {
-		possibleMoves["up"] = false
-	}
+	myHead := state.You.Body[0]
 
-	// TODO: Step 1 - Don't hit walls.
-	// Use information in GameState to prevent your Battlesnake from moving beyond the boundaries of the board.
 	boardWidth := state.Board.Width
 	boardHeight := state.Board.Height
 
@@ -81,16 +62,22 @@ func move(state GameState) BattlesnakeMoveResponse {
 		possibleMoves["down"] = false
 	}
 
-	// TODO: Step 2 - Don't hit yourself.
-	// Use information in GameState to prevent your Battlesnake from colliding with itself.
-	// mybody := state.You.Body
+	// deathPoints are positions we can't go
+	// Populate it with our own body
+	deathPoints := append([]Coord{}, state.You.Body...)
+
+	// Thne add all other snakes
+	for _, s := range state.Board.Snakes {
+		deathPoints = append(deathPoints, s.Body...)
+	}
+
 	for m, safe := range possibleMoves {
 		if safe {
 			switch m {
 			case "up":
 				nextHead := myHead
 				nextHead.Y++
-				for _, c := range state.You.Body {
+				for _, c := range deathPoints {
 					if nextHead == c {
 						possibleMoves["up"] = false
 					}
@@ -100,7 +87,7 @@ func move(state GameState) BattlesnakeMoveResponse {
 			case "down":
 				nextHead := myHead
 				nextHead.Y--
-				for _, c := range state.You.Body {
+				for _, c := range deathPoints {
 					if nextHead == c {
 						possibleMoves["down"] = false
 					}
@@ -110,7 +97,7 @@ func move(state GameState) BattlesnakeMoveResponse {
 			case "left":
 				nextHead := myHead
 				nextHead.X--
-				for _, c := range state.You.Body {
+				for _, c := range deathPoints {
 					if nextHead == c {
 						possibleMoves["left"] = false
 					}
@@ -120,7 +107,7 @@ func move(state GameState) BattlesnakeMoveResponse {
 			case "right":
 				nextHead := myHead
 				nextHead.X++
-				for _, c := range state.You.Body {
+				for _, c := range deathPoints {
 					if nextHead == c {
 						possibleMoves["right"] = false
 					}
@@ -129,9 +116,6 @@ func move(state GameState) BattlesnakeMoveResponse {
 			}
 		}
 	}
-
-	// TODO: Step 3 - Don't collide with others.
-	// Use information in GameState to prevent your Battlesnake from colliding with others.
 
 	// TODO: Step 4 - Find food.
 	// Use information in GameState to seek out and find food.
@@ -149,10 +133,11 @@ func move(state GameState) BattlesnakeMoveResponse {
 
 	if len(safeMoves) == 0 {
 		nextMove = "down"
-		log.Printf("%s MOVE %d: No safe moves detected! Moving %s\n", state.Game.ID, state.Turn, nextMove)
+		log.Printf("%s %s MOVE %d: No safe moves detected! Moving %s\n",
+			state.Game.ID, state.You.ID, state.Turn, nextMove)
 	} else {
 		nextMove = safeMoves[rand.Intn(len(safeMoves))]
-		log.Printf("%s MOVE %d: %s\n", state.Game.ID, state.Turn, nextMove)
+		log.Printf("%s %s MOVE %d: %s\n", state.Game.ID, state.You.ID, state.Turn, nextMove)
 	}
 	return BattlesnakeMoveResponse{
 		Move: nextMove,
