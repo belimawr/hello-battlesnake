@@ -49,6 +49,7 @@ func move(state GameState) BattlesnakeMoveResponse {
 	boardWidth := state.Board.Width
 	boardHeight := state.Board.Height
 
+	// Avoid walls
 	if myHead.X == boardWidth-1 {
 		possibleMoves["right"] = false
 	}
@@ -62,13 +63,18 @@ func move(state GameState) BattlesnakeMoveResponse {
 		possibleMoves["down"] = false
 	}
 
-	// deathPoints are positions we can't go
+	// snakesBodies are positions we can't go
 	// Populate it with our own body
-	deathPoints := append([]Coord{}, state.You.Body...)
+	snakesBodies := []Coord{}
+	snakesHeads := []Coord{}
 
-	// Thne add all other snakes
+	// The add all snakes (including ourselves)
 	for _, s := range state.Board.Snakes {
-		deathPoints = append(deathPoints, s.Body...)
+		snakesBodies = append(snakesBodies, s.Body...)
+
+		if s.ID != state.You.ID {
+			snakesHeads = append(snakesHeads, s.Head)
+		}
 	}
 
 	for m, safe := range possibleMoves {
@@ -77,17 +83,20 @@ func move(state GameState) BattlesnakeMoveResponse {
 			case "up":
 				nextHead := myHead
 				nextHead.Y++
-				for _, c := range deathPoints {
+				for _, c := range snakesBodies {
 					if nextHead == c {
 						possibleMoves["up"] = false
 					}
 
 				}
 
+				// for _, c := snakesHeads{
+				// }
+
 			case "down":
 				nextHead := myHead
 				nextHead.Y--
-				for _, c := range deathPoints {
+				for _, c := range snakesBodies {
 					if nextHead == c {
 						possibleMoves["down"] = false
 					}
@@ -97,7 +106,7 @@ func move(state GameState) BattlesnakeMoveResponse {
 			case "left":
 				nextHead := myHead
 				nextHead.X--
-				for _, c := range deathPoints {
+				for _, c := range snakesBodies {
 					if nextHead == c {
 						possibleMoves["left"] = false
 					}
@@ -107,7 +116,7 @@ func move(state GameState) BattlesnakeMoveResponse {
 			case "right":
 				nextHead := myHead
 				nextHead.X++
-				for _, c := range deathPoints {
+				for _, c := range snakesBodies {
 					if nextHead == c {
 						possibleMoves["right"] = false
 					}
@@ -115,6 +124,11 @@ func move(state GameState) BattlesnakeMoveResponse {
 				}
 			}
 		}
+	}
+
+	// Avoid hitting snakes on their next move
+	for _, m := range avoidHeadColision(myHead, snakesHeads) {
+		possibleMoves[m] = false
 	}
 
 	// TODO: Step 4 - Find food.
@@ -142,4 +156,68 @@ func move(state GameState) BattlesnakeMoveResponse {
 	return BattlesnakeMoveResponse{
 		Move: nextMove,
 	}
+}
+
+// avoidHeadColision returns dangerous moves, they might hit other snake's head
+func avoidHeadColision(myHead Coord, snakesHeads []Coord) []string {
+	moves := []string{"up", "down", "left", "right"}
+	dangerousMoves := map[string]bool{
+		"up":    false,
+		"down":  false,
+		"left":  false,
+		"right": false,
+	}
+
+	for _, sh := range snakesHeads {
+		for _, m := range moves {
+			switch m {
+			case "up":
+				nextHead := Coord{X: myHead.X, Y: myHead.Y + 1}
+				if willHitOtherHead(nextHead, sh) {
+					dangerousMoves["up"] = true
+				}
+			case "down":
+				nextHead := Coord{X: myHead.X, Y: myHead.Y - 1}
+				if willHitOtherHead(nextHead, sh) {
+					dangerousMoves["up"] = true
+				}
+			case "left":
+				nextHead := Coord{X: myHead.X - 1, Y: myHead.Y}
+				if willHitOtherHead(nextHead, sh) {
+					dangerousMoves["up"] = true
+				}
+			case "right":
+				nextHead := Coord{X: myHead.X + 1, Y: myHead.Y}
+				if willHitOtherHead(nextHead, sh) {
+					dangerousMoves["up"] = true
+				}
+			}
+		}
+	}
+
+	movesList := []string{}
+	for m, notSafe := range dangerousMoves {
+		if notSafe {
+			movesList = append(movesList, m)
+		}
+	}
+
+	return movesList
+}
+
+func willHitOtherHead(me, other Coord) bool {
+	others := []Coord{
+		{X: other.X, Y: other.Y + 1}, // up
+		{X: other.X, Y: other.Y - 1}, // down
+		{X: other.X + 1, Y: other.Y}, // right
+		{X: other.X - 1, Y: other.Y}, // left
+	}
+
+	for _, o := range others {
+		if me == o {
+			return true
+		}
+	}
+
+	return false
 }
